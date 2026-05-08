@@ -79,7 +79,7 @@ const ROUTE_MAPPING = {
             ];
         },
     },
-    search_friend: {
+    /* search_friend: {
         description: "搜索好友",
         params: {
             name: {
@@ -111,8 +111,8 @@ const ROUTE_MAPPING = {
             }
             return res;
         }
-    },
-    add_friend: {
+    }, */
+    /* add_friend: {
         description: "添加好友",
         channel: "COMMON_IM_MT_APPLY_FRIEND_REQ",
         params: {
@@ -130,7 +130,7 @@ const ROUTE_MAPPING = {
         },
         waitFor: "COMMON_IM_MT_APPLY_FRIEND_RES",
         //errCode为0添加成功,为10则重复添加
-    },
+    }, */
     get_user_match_history: {
         description: "获取比赛历史记录",
         params: {
@@ -218,7 +218,7 @@ const ROUTE_MAPPING = {
             ];
         },
     },
-    create_ladder_team: {
+    /* create_ladder_team: {
         description: "创建天梯房间",
         params: {
             map_names: {
@@ -260,8 +260,8 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "CSGO_LADDER_MT_CREATE_TEAM_RES",
-    },
-    leave_ladder_team: {
+    }, */
+    /* leave_ladder_team: {
         description: "离开天梯房间/队伍",
         params: {
             leave_team_reason: {
@@ -278,8 +278,8 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "CSGO_LADDER_MT_LEAVE_TEAM_NOTIFY",
-    },
-    get_match_zone: {
+    }, */
+    /* get_match_zone: {
         description: "获取匹配区域网络速度等信息",
         params: {},
         channel: "CSGO_EMIT_GET_NETWORK_SPEED",
@@ -291,8 +291,8 @@ const ROUTE_MAPPING = {
             };
             return [envelope];
         },
-    },
-    get_user_comment_list: {
+    }, */
+    /* get_user_comment_list: {
         description: "获取评论列表",
         params: {
             uid: {
@@ -312,8 +312,8 @@ const ROUTE_MAPPING = {
             };
             return [envelope];
         },
-    },
-    send_team_msg: {
+    }, */
+    /* send_team_msg: {
         description: "发送队伍聊天",
         params: {
             text: {
@@ -335,8 +335,8 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "CSGO_LADDER_MT_TEAM_CHAT_RES",
-    },
-    get_friend_list: {
+    }, */
+    /* get_friend_list: {
         description: "获取好友列表",
         params: {
             friendType: {
@@ -353,8 +353,8 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "COMMON_IM_MT_GET_FRIEND_LIST_RES",
-    },
-    send_friend_msg: {
+    }, */
+    /* send_friend_msg: {
         description: "发送好友私信",
         params: {
             chatChannel: {
@@ -381,8 +381,8 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "COMMON_IM_MT_CHAT_RES",
-    },
-    save_reaction_result: {
+    }, */
+    /* save_reaction_result: {
         description: "保存反应测试结果",
         channel: "REACTION_TESTSAVE_USER_RESULT_REQ",
         params: {
@@ -413,8 +413,8 @@ const ROUTE_MAPPING = {
                 },
             ];
         },
-    },
-    get_user_season_stats: {
+    }, */
+    /* get_user_season_stats: {
         description: "获取赛季统计数据(雷达图/武器/地图)",
         channel: "CSGO_OVERVIEW_GET_SEASON_STATS_REQ",
         params: {
@@ -445,7 +445,7 @@ const ROUTE_MAPPING = {
             };
             return [envelope];
         },
-    },
+    }, */
     get_current_user_info: {
         description: "获取当前用户信息",
         params: {},

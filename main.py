@@ -1,4 +1,4 @@
-﻿import ctypes
+﻿﻿import ctypes
 import subprocess
 import json
 import urllib.request
@@ -29,14 +29,14 @@ def launch_app_with_inspect() -> bool:
         )
         return True
     except OSError as err:
-        if getattr(err, "winerror", None) == 740:
-            params = f"--inspect={DEBUG_PORT}"
-            ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", APP_EXE, params, None, 1)
-            if ret <= 32:
-                print(f"[-] 提权启动失败，ShellExecuteW 返回码: {ret}")
-                return False
-            print("[!] 检测到平台需要管理员权限，已触发 UAC 提权启动。")
-            return True
+        # if getattr(err, "winerror", None) == 740:
+        #     params = f"--inspect={DEBUG_PORT}"
+        #     ret = ctypes.windll.shell32.ShellExecuteW(None, "runas", APP_EXE, params, None, 1)
+        #     if ret <= 32:
+        #         print(f"[-] 提权启动失败，ShellExecuteW 返回码: {ret}")
+        #         return False
+        #     print("[!] 检测到平台需要管理员权限，已触发 UAC 提权启动。")
+        #     return True
         raise
 
 async def inject():
