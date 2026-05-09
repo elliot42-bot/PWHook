@@ -1,4 +1,4 @@
-﻿﻿import ctypes
+import ctypes
 import subprocess
 import json
 import urllib.request
@@ -13,6 +13,12 @@ HOOK_SCRIPT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hook_sou
 DEBUG_PORT = 9230
 WAIT_FOR_INJECT = 0
 
+# 只允许这些 SteamID 登录。请把占位值替换成测试小号的 SteamID64。
+# 如果保持占位值不改，检测到任何真实数字 SteamID 都会触发保护并停用 PWHook。
+ALLOWED_STEAM_IDS = [
+    "PUT_TEST_STEAM_ID64_HERE",
+]
+
 CREATE_FLAGS = (
     subprocess.DETACHED_PROCESS
     | subprocess.CREATE_NEW_PROCESS_GROUP
@@ -22,10 +28,14 @@ CREATE_FLAGS = (
 
 def launch_app_with_inspect() -> bool:
     try:
+        env = os.environ.copy()
+        env["PWHOOK_ACCOUNT_GUARD_ENABLED"] = "1"
+        env["PWHOOK_ALLOWED_STEAM_IDS"] = ",".join(ALLOWED_STEAM_IDS)
         subprocess.Popen(
             [APP_EXE, f"--inspect={DEBUG_PORT}"],
             creationflags=CREATE_FLAGS,
             close_fds=True,
+            env=env,
         )
         return True
     except OSError as err:

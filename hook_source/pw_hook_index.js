@@ -4,6 +4,17 @@ const electron = require("electron");
 const path = require("path");
 
 const API_BYPASS_SYMBOL = "__pw_hook_api_bypass__";
+const ACCOUNT_GUARD_ENABLED = process.env.PWHOOK_ACCOUNT_GUARD_ENABLED !== "0";
+const ALLOWED_STEAM_IDS = new Set(
+    String(process.env.PWHOOK_ALLOWED_STEAM_IDS || "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+);
+let accountGuardTriggered = false;
+let pwHookDisabled = false;
+let accountGuardPollTimer = null;
+let consoleWindow = null;
 
 const getWebContentsMeta = (wc) => {
     let windowTitle = "";
@@ -29,6 +40,103 @@ const logPayload = (prefix, payload) => {
     } catch (_) {
         console.log(prefix, payload);
     }
+};
+
+const normalizeSteamId = (value) => {
+    if (value === undefined || value === null) {
+        return "";
+    }
+    const normalized = String(value).trim();
+    return /^\d{5,20}$/.test(normalized) ? normalized : "";
+};
+
+const isLoginAccountSource = (payload, source) => {
+    if (String(source || "").startsWith("global.user")) {
+        return true;
+    }
+    if (payload && typeof payload === "object" && payload.type === "logined") {
+        return true;
+    }
+    return /check-loginFromSteam|login/i.test(String(source || ""));
+};
+
+const extractSteamIdFromPayload = (payload, source) => {
+    if (!payload || typeof payload !== "object") {
+        return "";
+    }
+    if (payload.type === "logout") {
+        return "";
+    }
+    if (!isLoginAccountSource(payload, source)) {
+        return "";
+    }
+
+    return normalizeSteamId(
+        payload.uid ??
+        payload.steamId ??
+        payload.steamID ??
+        payload.steam_id ??
+        payload.id
+    );
+};
+
+const shutdownForUnexpectedSteamId = (steamId, source) => {
+    if (accountGuardTriggered) {
+        return;
+    }
+    accountGuardTriggered = true;
+    pwHookDisabled = true;
+
+    console.error("============================================================");
+    console.error(`[PW_HOOK][ACCOUNT_GUARD] 检测到非测试 SteamID 登录: ${steamId}`);
+    console.error(`[PW_HOOK][ACCOUNT_GUARD] 来源: ${source}`);
+    console.error(`[PW_HOOK][ACCOUNT_GUARD] 允许的 SteamID: ${Array.from(ALLOWED_STEAM_IDS).join(", ") || "(未配置)"}`);
+    console.error("[PW_HOOK][ACCOUNT_GUARD] 即将停用 PWHook，完美客户端会继续运行。");
+    console.error("============================================================");
+
+    setTimeout(() => {
+        try {
+            if (accountGuardPollTimer) {
+                clearInterval(accountGuardPollTimer);
+                accountGuardPollTimer = null;
+            }
+        } catch (_) {}
+
+        try {
+            store.clearSubscriptions();
+        } catch (_) {}
+
+        try {
+            server.stopServer();
+        } catch (_) {}
+
+        try {
+            if (consoleWindow && !consoleWindow.isDestroyed()) {
+                consoleWindow.close();
+            }
+        } catch (_) {}
+
+        console.error("[PW_HOOK][ACCOUNT_GUARD] PWHook 已停用。本地 API 端口和控制台窗口已关闭。");
+    }, 500);
+};
+
+const verifySteamIdAllowed = (steamId, source) => {
+    if (!ACCOUNT_GUARD_ENABLED || !steamId) {
+        return;
+    }
+    if (!ALLOWED_STEAM_IDS.has(steamId)) {
+        shutdownForUnexpectedSteamId(steamId, source);
+    }
+};
+
+const verifyPayloadAccount = (payload, source) => {
+    verifySteamIdAllowed(extractSteamIdFromPayload(payload, source), source);
+};
+
+const verifyGlobalUserAccount = (source) => {
+    try {
+        verifyPayloadAccount(global.user, source);
+    } catch (_) {}
 };
 
 const isApiBypassPayload = (payload) => {
@@ -155,7 +263,9 @@ const init = () => {
     levels.forEach((level) => {
         const hooked = (...args) => {
             nativeConsole[level](...args);
-            server.broadcastLog(level, args);
+            if (!pwHookDisabled) {
+                server.broadcastLog(level, args);
+            }
         };
         try {
             Object.defineProperty(console, level, {
@@ -173,6 +283,13 @@ const init = () => {
     // 启动基于 HTTP 的 RPC 通信服务器（含 SSE 日志端点）
     // ─────────────────────────────────────────────────────────────
     server.startServer();
+
+    if (ACCOUNT_GUARD_ENABLED) {
+        console.warn(`[PW_HOOK][ACCOUNT_GUARD] SteamID 白名单保护已启用: ${Array.from(ALLOWED_STEAM_IDS).join(", ") || "(未配置)"}`);
+        accountGuardPollTimer = setInterval(() => {
+            verifyGlobalUserAccount("global.user poll");
+        }, 1000);
+    }
 
     console.log("[PW_HOOK] 正在初始化 God Mode Hook 系统...");
 
@@ -195,6 +312,12 @@ const init = () => {
         win.loadFile(frontendPath);
 
         win.setMenuBarVisibility(false);
+        consoleWindow = win;
+        win.on("closed", () => {
+            if (consoleWindow === win) {
+                consoleWindow = null;
+            }
+        });
     };
 
     if (electron.app.isReady()) {
@@ -251,6 +374,10 @@ const init = () => {
         });
 
         const wrappedListener = async function (event, ...args) {
+            if (pwHookDisabled) {
+                return await listener.apply(this, [event, ...args]);
+            }
+
             let modifiedArgs = args;
             const shouldBypassInterception = isApiBypassPayload(modifiedArgs[0]);
 
@@ -262,6 +389,7 @@ const init = () => {
             console.log(`[PW_HOOK] 捕获前端请求 ↑ [${channel}]`);
             if (modifiedArgs.length > 0) {
                 logPayload(`[PW_HOOK] 请求传参 Payload:`, modifiedArgs[0]);
+                verifyPayloadAccount(modifiedArgs[0], `ipcMain.handle:${channel}`);
             }
 
             if (!shouldBypassInterception) {
@@ -325,6 +453,10 @@ const init = () => {
         });
 
         const wrappedListener = function (event, ...args) {
+            if (pwHookDisabled) {
+                return listener.apply(this, [event, ...args]);
+            }
+
             return (async () => {
             let modifiedArgs = args;
             const shouldBypassInterception = isApiBypassPayload(modifiedArgs[0]);
@@ -338,6 +470,7 @@ const init = () => {
             console.log(`[PW_HOOK] 捕获前端请求 ↑ [${channel}]`);
             if (modifiedArgs.length > 0) {
                 logPayload(`[PW_HOOK] 请求传参 Payload:`, modifiedArgs[0]);
+                verifyPayloadAccount(modifiedArgs[0], `ipcMain.on:${channel}`);
             }
 
             if (!shouldBypassInterception) {
@@ -384,6 +517,10 @@ const init = () => {
 
         const originalSend = wc.send;
         wc.send = async function (channel, ...args) {
+            if (pwHookDisabled) {
+                return originalSend.apply(this, [channel, ...args]);
+            }
+
             let targetChannel = channel;
             let modifiedArgs = args;
             const shouldBypassInterception = isApiBypassPayload(modifiedArgs[0]);
@@ -396,6 +533,7 @@ const init = () => {
             console.log(`[PW_HOOK] 捕获服务端推送 ↓ [${targetChannel}]`);
             if (modifiedArgs.length > 0) {
                 logPayload(`[PW_HOOK] 推送数据 Payload:`, modifiedArgs[0]);
+                verifyPayloadAccount(modifiedArgs[0], `webContents.send:${targetChannel}`);
             }
 
             // 将服务端推给前端的事件通过 EventBus 广播出来，供 Router 等机制挂起等待

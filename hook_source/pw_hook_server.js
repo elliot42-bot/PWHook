@@ -7,6 +7,7 @@ const PORT = 28888; // HTTP服务器监听的端口
 // SSE 客户端列表
 const sseClients = [];
 let activeEventClient = null;
+let activeServer = null;
 
 /**
  * 向所有 SSE 客户端广播一条日志消息
@@ -14,6 +15,9 @@ let activeEventClient = null;
  * @param {any[]} args
  */
 const broadcastLog = (level, args) => {
+    if (!activeServer) {
+        return;
+    }
     const payload = JSON.stringify({
         level,
         time: new Date().toISOString(),
@@ -46,7 +50,7 @@ const writeEventMessage = (res, event) => {
 };
 
 const broadcastEventObject = (event) => {
-    if (!activeEventClient) {
+    if (!activeServer || !activeEventClient) {
         return;
     }
     try {
@@ -57,6 +61,10 @@ const broadcastEventObject = (event) => {
 };
 
 const startServer = () => {
+    if (activeServer) {
+        return activeServer;
+    }
+
     const server = http.createServer((req, res) => {
         // 允许跨域（方便浏览器控制台直接发起 fetch 调试）
         res.setHeader("Access-Control-Allow-Origin", "*");
@@ -176,6 +184,35 @@ const startServer = () => {
     server.listen(PORT, "127.0.0.1", () => {
         console.log(`[PW_HOOK] 服务器已启动: http://127.0.0.1:${PORT}`);
     });
+
+    activeServer = server;
+    return server;
 };
 
-module.exports = { startServer, broadcastLog, broadcastEventObject };
+const stopServer = () => {
+    if (activeEventClient) {
+        try {
+            activeEventClient.end();
+        } catch (_) {}
+        activeEventClient = null;
+    }
+
+    for (let i = sseClients.length - 1; i >= 0; i--) {
+        try {
+            sseClients[i].end();
+        } catch (_) {}
+        sseClients.splice(i, 1);
+    }
+
+    if (!activeServer) {
+        return;
+    }
+
+    const server = activeServer;
+    activeServer = null;
+    try {
+        server.close();
+    } catch (_) {}
+};
+
+module.exports = { startServer, stopServer, broadcastLog, broadcastEventObject };

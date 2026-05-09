@@ -336,7 +336,7 @@ const ROUTE_MAPPING = {
         },
         waitFor: "CSGO_LADDER_MT_TEAM_CHAT_RES",
     }, */
-    /* get_friend_list: {
+    get_friend_list: {
         description: "获取好友列表",
         params: {
             friendType: {
@@ -353,7 +353,7 @@ const ROUTE_MAPPING = {
             ];
         },
         waitFor: "COMMON_IM_MT_GET_FRIEND_LIST_RES",
-    }, */
+    },
     /* send_friend_msg: {
         description: "发送好友私信",
         params: {
